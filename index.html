@@ -196,6 +196,10 @@
     .moods .bar > div { background: var(--series); transition: none; }
     .moods .t { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
     .empty { color: var(--muted); font-size: 0.85rem; text-align: center; margin: 0; }
+    .notes { display: flex; flex-direction: column; gap: 14px; }
+    .notes h3 { margin: 0 0 4px; font-size: 0.95rem; }
+    .notes h3 span { color: var(--muted); font-weight: 500; font-size: 0.8rem; margin-left: 6px; }
+    .notes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; font-size: 0.88rem; line-height: 1.4; }
     button.link { background: none; color: var(--muted); padding: 4px; font-size: 0.8rem; font-weight: 600; text-decoration: underline; align-self: center; }
   </style>
 </head>
@@ -363,6 +367,18 @@
     <button id="pdf" class="secondary">📄 PDF-Bericht</button>
     <p class="empty" id="pdfMsg" hidden></p>
     <button class="link" id="reset">Auswertung löschen</button>
+  </section>
+  </div>
+  <button class="link" id="openNotes">Version <span id="appVersion"></span> · Was ist neu?</button>
+
+  <div class="sheet" id="notesSheet" hidden>
+  <div class="sheet-backdrop" id="notesBackdrop"></div>
+  <section class="meter report sheet-panel" role="dialog" aria-modal="true" aria-labelledby="notesTitle">
+    <div class="report-head">
+      <h2 id="notesTitle">🆕 Was ist neu?</h2>
+      <button class="close" id="closeNotes" aria-label="Schließen">✕</button>
+    </div>
+    <div class="notes" id="notes"></div>
   </section>
   </div>
 </main>
@@ -943,6 +959,41 @@
     }
     doc.save(name);
   });
+
+  // ---------- Release Notes ----------
+  const RELEASES = [
+    { v: 9, date: "11.10.2026", items: ["„Was ist neu?“: Release Notes direkt in der App."] },
+    { v: 8, date: "11.10.2026", items: ["PDF-Bericht in der Auswertung: Kennzahlen, Diagramm, Zeit pro Stimmung und Mauseloch-Momente.", "Auf dem iPhone über das Teilen-Menü speichern oder verschicken."] },
+    { v: 7, date: "11.10.2026", items: ["Das Mäuschen bleibt im Mauseloch, bis es 15 s lang nicht mehr sehr laut war.", "Danach krabbelt es langsam heraus. Wird es dabei laut, flitzt es zurück."] },
+    { v: 6, date: "11.10.2026", items: ["Mauseloch statt tot: Bei sehr viel Lärm versteckt sich das Mäuschen.", "„Flüchtet“ ersetzt „Ohnmächtig“."] },
+    { v: 5, date: "11.10.2026", items: ["Auswertung öffnet sich als Fenster über den Knopf „📊 Auswertung“."] },
+    { v: 4, date: "11.10.2026", items: ["Auswertung über die Zeit: Messdauer, Ø/max. Lautstärke, Verlauf, Zeit pro Stimmung.", "Warnton und Vibration wieder entfernt.", "Bildschirm bleibt während der Messung an."] },
+    { v: 3, date: "11.10.2026", items: ["Warnton statt Vibration (wieder entfernt in Version 4)."] },
+    { v: 2, date: "11.10.2026", items: ["Vibrations-Knopf (funktioniert auf dem iPhone nicht, entfernt in Version 4)."] },
+    { v: 1, date: "11.10.2026", items: ["Erste Version: Das Mäuschen hört über das Mikrofon mit und zeigt 7 Stimmungen von überglücklich bis zu laut."] },
+  ];
+  $("appVersion").textContent = RELEASES[0].v;
+  RELEASES.forEach((r) => {
+    const box = document.createElement("div");
+    const h = document.createElement("h3");
+    h.textContent = `Version ${r.v}`;
+    const d = document.createElement("span");
+    d.textContent = r.date;
+    h.append(d);
+    const ul = document.createElement("ul");
+    r.items.forEach((it) => { const li = document.createElement("li"); li.textContent = it; ul.append(li); });
+    box.append(h, ul);
+    $("notes").append(box);
+  });
+  const toggleNotes = (open) => {
+    $("notesSheet").hidden = !open;
+    document.body.classList.toggle("sheet-open", open);
+    (open ? $("closeNotes") : $("openNotes")).focus();
+  };
+  $("openNotes").addEventListener("click", () => toggleNotes(true));
+  $("closeNotes").addEventListener("click", () => toggleNotes(false));
+  $("notesBackdrop").addEventListener("click", () => toggleNotes(false));
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("notesSheet").hidden) toggleNotes(false); });
 
   function openReport() {
     $("sheet").hidden = false;
