@@ -5,7 +5,8 @@ seine Stimmung ändert: **Überglücklich → Glücklich → Nervös → Ängstl
 
 - Leise: Herzchen, wippt fröhlich.
 - Lauter: Augenbrauen, Angstschweiß, Zittern, offener Mund.
-- Sehr laut: rennt weg und versteckt sich im Mauseloch (nur noch Augen und Schwanzspitze schauen raus). Nach mindestens 4 s Ruhe traut es sich wieder raus.
+- Sehr laut: rennt weg und versteckt sich im Mauseloch (nur noch Augen und Schwanzspitze schauen raus).
+  Erst wenn es 15 s lang nicht mehr sehr laut war, krabbelt es langsam wieder heraus. Wird es dabei wieder laut, flitzt es zurück.
 
 ## Auf dem iPhone benutzen
 

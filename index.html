@@ -377,12 +377,37 @@
     { max: 72,  name: "Ängstlich 😰",     hint: "Bitte leiser!" },
     { max: 88,  name: "Panik 😱",         hint: "ZU LAUT!" },
     { max: 97,  name: "Flüchtet 💨",      hint: "Nichts wie weg hier…" },
-    { max: 101, name: "Im Mauseloch 🕳️",  hint: "Erst wenn es ruhig ist, traut es sich wieder raus." },
+    { max: 101, name: "Im Mauseloch 🕳️",  hint: "Zu laut! Erst wenn es länger ruhig ist, traut es sich wieder raus." },
   ];
 
   let audioCtx, analyser, buf;
   let smoothed = 0;      // geglätteter Pegel 0–100
-  let deadUntil = 0;     // Zeitpunkt, bis zu dem die Maus im Mauseloch bleibt
+  // Mauseloch: rein, sobald es sehr laut ist. Raus erst, wenn es länger
+  // nicht mehr sehr laut war – und dann langsam.
+  const QUIET_BELOW = 72;      // unter "Panik" gilt als nicht mehr sehr laut
+  const STAY_QUIET_MS = 15000; // so lange muss es ruhig bleiben
+  const EMERGE_MS = 4000;      // so lange dauert das Rauskommen
+  let hiding = false;
+  let quietSince = null;
+  let emergeStart = null;
+
+  function updateHiding(now) {
+    if (smoothed >= MOODS[MOODS.length - 2].max) {
+      hiding = true; quietSince = null; emergeStart = null;
+      return;
+    }
+    if (!hiding) return;
+    if (smoothed >= QUIET_BELOW) {        // wieder laut → zurück ins Loch
+      quietSince = null; emergeStart = null;
+      return;
+    }
+    if (emergeStart !== null) {
+      if (now - emergeStart >= EMERGE_MS) { hiding = false; emergeStart = null; }
+      return;
+    }
+    if (quietSince === null) quietSince = now;
+    if (now - quietSince >= STAY_QUIET_MS) emergeStart = now;
+  }
   let t0 = performance.now();
 
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -433,14 +458,28 @@
 
   function render(level, now) {
     const t = level / 100;            // 0 = happy, 1 = Mauseloch
-    const dead = now < deadUntil;
+    // 0 = ganz im Loch … 1 = ganz draußen
+    const emerge = emergeStart === null ? (hiding ? 0 : 1) : clamp((now - emergeStart) / EMERGE_MS, 0, 1);
+    const dead = hiding && emergeStart === null;
     let idx = MOODS.findIndex((m) => level < m.max);
-    if (dead) idx = MOODS.length - 1;
+    if (hiding) idx = MOODS.length - 1;
     const mood = MOODS[idx];
     curIdx = idx;
 
-    $("mood").textContent = mood.name;
-    $("hint").textContent = analyser ? mood.hint : "Tippe auf „Start“ und erlaube das Mikrofon.";
+    let hint = mood.hint;
+    if (hiding && emergeStart !== null) {
+      $("mood").textContent = "Traut sich raus 🐭";
+      hint = "Psst… ganz leise bleiben.";
+    } else {
+      $("mood").textContent = mood.name;
+      if (hiding && quietSince !== null) {
+        const left = Math.ceil((STAY_QUIET_MS - (now - quietSince)) / 1000);
+        hint = `Schon ruhiger… noch ${left} s, dann traut es sich raus.`;
+      }
+    }
+    $("hint").textContent = analyser ? hint : "Tippe auf „Start“ und erlaube das Mikrofon.";
+    // beim Rauskommen noch etwas schüchtern gucken
+    if (hiding && !dead) idx = Math.max(2, Math.min(MOODS.findIndex((m) => level < m.max), 3));
 
     // Fellfarbe: gesund grau-braun → blass → grau-grünlich
     const fur = dead ? "#9aa39a" : t < 0.6 ? mix("#b9b2ad", "#c8c3c0", t / 0.6) : mix("#c8c3c0", "#a7ada4", (t - 0.6) / 0.4);
@@ -493,8 +532,10 @@
     show("sweat", !dead && idx >= 3);
     show("hearts", !dead && idx === 0);
     // Mauseloch: Maus weg, nur Augen (blinzeln) und Schwanzspitze sind zu sehen
-    $("shake").style.opacity = dead ? 0 : 1;
-    $("hole").setAttribute("opacity", dead ? 1 : 0);
+    $("shake").style.opacity = clamp(emerge * 2, 0, 1);
+    $("hole").setAttribute("opacity", clamp((1 - emerge) * 2, 0, 1));
+    $("holeEyes").style.opacity = dead ? 1 : 0;
+    $("holeTail").style.opacity = dead ? 1 : 0;
 
     // Ohren hängen lassen
     const droop = dead ? 35 : lerp(0, 20, t);
@@ -509,6 +550,10 @@
       $("holeEyes").style.transform = `scaleY(${blink})`;
       $("holeEyes").style.transformOrigin = "100px 136px";
       $("holeTail").setAttribute("d", `M138 171 C 152 173, 162 ${166 + Math.sin(sec * 5) * 3}, 176 170`);
+    } else if (emerge < 1) {
+      // langsam aus dem Loch krabbeln: klein und unten → normal groß in der Mitte
+      const e = emerge * emerge * (3 - 2 * emerge);
+      tf = `translateY(${(1 - e) * 40}px) scale(${0.35 + 0.65 * e})`;
     } else if (idx === 5) {
       const run = clamp((level - 88) / 9, 0, 1);
       tf = `translateX(${lerp(4, 18, run) + (Math.random() - 0.5) * 3}px) rotate(${lerp(4, 10, run)}deg)`;
@@ -519,6 +564,7 @@
       tf = `translateY(${Math.sin(sec * 3) * 2.5}px)`;
     }
     $("shake").style.transform = tf;
+    $("shake").style.transformOrigin = emerge < 1 ? "100px 175px" : "";
     $("tail").setAttribute("d", `M150 165 C 185 170, 190 140, 175 130 S 160 110, ${182 + Math.sin(sec * 4) * (1 - t) * 6} 98`);
 
     // Pegelanzeige
@@ -747,7 +793,7 @@
     // schnell lauter, langsam leiser → Maus erholt sich nur langsam
     const k = level > smoothed ? 0.35 : 0.03;
     smoothed += (level - smoothed) * k;
-    if (smoothed >= MOODS[MOODS.length - 2].max) deadUntil = now + 4000;
+    updateHiding(now);
     $("db").textContent = db == null ? "– dB" : `≈ ${db} dB`;
     render(smoothed, now);
     if (analyser && db != null) record(db, now);
