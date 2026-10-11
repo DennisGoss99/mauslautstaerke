@@ -20,6 +20,8 @@ Safari erlaubt das Mikrofon nur über **HTTPS**. Am einfachsten über GitHub Pag
 Der Knopf **„📊 Auswertung“** öffnet ein Fenster mit dem Verlauf: den Verlauf: Messdauer, Ø und maximale Lautstärke, wie oft sich das Mäuschen ins Mauseloch verkrochen hat,
 ein Diagramm über die Zeit (5 Min / 1 Std / Alles) und wie lange es in welcher Stimmung war.
 Die Messwerte bleiben im Browser auf dem Handy gespeichert (max. 6 Stunden).
+Mit **„📄 PDF-Bericht“** wird daraus ein PDF (Kennzahlen, Diagramm, Zeit pro Stimmung, Mauseloch-Momente),
+das sich auf dem iPhone über das Teilen-Menü speichern oder verschicken lässt.
 
 Mit dem Regler „Empfindlichkeit“ lässt sich einstellen, wie schnell das Mäuschen Angst bekommt.
 
