@@ -2,6 +2,9 @@
 
 Webseite: https://dennisgoss99.github.io/mauslautstaerke/
 
+## Version 11 – 11.10.2026
+- Kopfhörer sitzen jetzt hinter den Schnurrhaaren.
+
 ## Version 10 – 11.10.2026
 - 🎧 Auszeit: Das Mäuschen setzt Kopfhörer auf und hört Musik. Die Minuten stellst du selbst ein (1–600).
 - Während der Auszeit ist dem Mäuschen Lärm egal, ein Countdown zeigt die Restzeit.

@@ -302,6 +302,13 @@
           <!-- Nase -->
           <ellipse cx="100" cy="118" rx="6" ry="4.5" fill="#e77d93"/>
 
+          <!-- Kopfhörer (Auszeit) -->
+          <g id="headphones" opacity="0">
+            <path d="M47 112 C 40 36, 160 36, 153 112" fill="none" stroke="#3d4266" stroke-width="7" stroke-linecap="round"/>
+            <rect x="34" y="94" width="22" height="38" rx="10" fill="#6b78e5" stroke="#3d4266" stroke-width="3"/>
+            <rect x="144" y="94" width="22" height="38" rx="10" fill="#6b78e5" stroke="#3d4266" stroke-width="3"/>
+          </g>
+
           <!-- Schnurrhaare -->
           <g id="whiskers" stroke="#6e625b" stroke-width="1.6" stroke-linecap="round">
             <path d="M84 120 L52 114"/><path d="M84 124 L50 126"/><path d="M84 128 L54 136"/>
@@ -324,12 +331,6 @@
           </g>
 
           <!-- Herzchen (sehr glücklich) -->
-          <!-- Kopfhörer (Auszeit) -->
-          <g id="headphones" opacity="0">
-            <path d="M47 112 C 40 36, 160 36, 153 112" fill="none" stroke="#3d4266" stroke-width="7" stroke-linecap="round"/>
-            <rect x="34" y="94" width="22" height="38" rx="10" fill="#6b78e5" stroke="#3d4266" stroke-width="3"/>
-            <rect x="144" y="94" width="22" height="38" rx="10" fill="#6b78e5" stroke="#3d4266" stroke-width="3"/>
-          </g>
           <!-- Musiknoten (Auszeit) -->
           <g id="notes" fill="#6b78e5" opacity="0">
             <g id="note1"><ellipse cx="172" cy="52" rx="6" ry="4.5"/><rect x="176" y="28" width="2.5" height="24"/><path d="M176 28 q 9 2 10 10 q -4 -5 -10 -5 z"/></g>
@@ -1083,6 +1084,7 @@
 
   // ---------- Release Notes ----------
   const RELEASES = [
+    { v: 11, date: "11.10.2026", items: ["Kopfhörer sitzen jetzt hinter den Schnurrhaaren."] },
     { v: 10, date: "11.10.2026", items: ["🎧 Auszeit: Das Mäuschen setzt Kopfhörer auf und hört Musik. Die Minuten stellst du selbst ein (1–600).", "Während der Auszeit ist dem Mäuschen Lärm egal, ein Countdown zeigt die Restzeit.", "Die Auszeit läuft auch nach dem Neuladen weiter und erscheint in der Auswertung und im PDF als eigene Zeile."] },
     { v: 9, date: "11.10.2026", items: ["„Was ist neu?“: Release Notes direkt in der App."] },
     { v: 8, date: "11.10.2026", items: ["PDF-Bericht in der Auswertung: Kennzahlen, Diagramm, Zeit pro Stimmung und Mauseloch-Momente.", "Auf dem iPhone über das Teilen-Menü speichern oder verschicken."] },
