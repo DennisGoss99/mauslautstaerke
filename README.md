@@ -16,8 +16,7 @@ Safari erlaubt das Mikrofon nur über **HTTPS**. Am einfachsten über GitHub Pag
 3. Auf **Start 🎤** tippen und das Mikrofon erlauben.
 4. Optional: Teilen → *Zum Home-Bildschirm*.
 
-Mit „Vibration an 📳“ vibriert das Handy, sobald das Mäuschen Angst bekommt (je lauter, desto öfter).
-Auf dem iPhone geht das nur in Safari ab iOS 18, und auch dort nur als kurzes Antippen.
+Mit „Warnton an 🔔“ piepst das Mäuschen, sobald es Angst bekommt (je lauter, desto öfter), und gibt einen traurigen Ton von sich, wenn es tot ist.
 
 Mit dem Regler „Empfindlichkeit“ lässt sich einstellen, wie schnell das Mäuschen Angst bekommt.
 

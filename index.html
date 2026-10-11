@@ -136,8 +136,6 @@
     .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
     button.secondary { background: var(--card); color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent); }
     button.secondary[aria-pressed="true"] { background: var(--accent); color: #fff; }
-    /* unsichtbarer Schalter: iOS-Safari gibt beim Umschalten ein haptisches Feedback */
-    #hapticLabel { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
   </style>
 </head>
 <body>
@@ -262,9 +260,8 @@
 
   <div class="controls">
     <button id="start">Start 🎤</button>
-    <button id="vibrate" class="secondary" aria-pressed="false">Vibration aus 📴</button>
+    <button id="sound" class="secondary" aria-pressed="false">Warnton aus 🔇</button>
   </div>
-  <label id="hapticLabel" aria-hidden="true"><input id="hapticSwitch" type="checkbox" switch tabindex="-1"></label>
   <p id="error"></p>
 
   <div class="meter">
@@ -314,8 +311,7 @@
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       });
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      await audioCtx.resume();
+      await getCtx();
       const src = audioCtx.createMediaStreamSource(stream);
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 2048;
@@ -329,25 +325,55 @@
   }
   $("start").addEventListener("click", start);
 
-  // Vibration, wenn es zu laut ist (ab "Ängstlich")
-  let vibOn = false;
-  let nextBuzz = 0;
-  function buzz(ms) {
-    if (navigator.vibrate) navigator.vibrate(ms);   // Android & Co.
-    else $("hapticLabel").click();                  // iPhone (Safari ab iOS 18)
+  function getCtx() {
+    // iPhone: Ton auch im Lautlos-Modus abspielen (Safari 16.4+)
+    try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch (e) {}
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx.resume();
   }
-  $("vibrate").addEventListener("click", () => {
-    vibOn = !vibOn;
-    $("vibrate").setAttribute("aria-pressed", vibOn);
-    $("vibrate").textContent = vibOn ? "Vibration an 📳" : "Vibration aus 📴";
-    if (vibOn) buzz(80);
+
+  // Warnton, wenn es zu laut ist (ab "Ängstlich"): das Mäuschen piepst
+  let soundOn = false;
+  let nextBeep = 0;
+  let deafUntil = 0;   // solange der Piepser läuft, hört das Mikro weg (sonst Rückkopplung)
+
+  function tone(f0, f1, dur, vol) {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(f0, t);
+    osc.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+    deafUntil = performance.now() + dur * 1000 + 250;
+  }
+  const squeak = () => tone(1800, 3200, 0.12, 0.5);   // "piep!"
+  const sadTone = () => tone(700, 180, 0.9, 0.4);     // "wüüü" – tot
+
+  $("sound").addEventListener("click", async () => {
+    soundOn = !soundOn;
+    $("sound").setAttribute("aria-pressed", soundOn);
+    $("sound").textContent = soundOn ? "Warnton an 🔔" : "Warnton aus 🔇";
+    if (soundOn) { await getCtx(); squeak(); }
+    if (navigator.vibrate) navigator.vibrate(soundOn ? 80 : 0);
   });
-  function maybeBuzz(idx, dead, now) {
-    if (!vibOn || idx < 3 || now < nextBuzz) return;
-    // je lauter, desto schneller und länger
-    const gap = dead ? 250 : [0, 0, 0, 700, 450, 300][idx];
-    buzz(dead ? 200 : 60 + (idx - 3) * 50);
-    nextBuzz = now + gap;
+
+  function maybeBeep(idx, dead, now) {
+    if (!soundOn || !audioCtx || idx < 3 || now < nextBeep) return;
+    if (dead) {
+      sadTone();
+      nextBeep = now + 2000;
+    } else {
+      squeak();
+      if (idx >= 4) setTimeout(squeak, 160);           // Panik: doppelt piepsen
+      if (navigator.vibrate) navigator.vibrate(100);   // Android vibriert zusätzlich
+      nextBeep = now + [0, 0, 0, 1200, 700, 450][idx];
+    }
   }
 
   function readLevel() {
@@ -371,7 +397,7 @@
     let idx = MOODS.findIndex((m) => level < m.max);
     if (dead) idx = MOODS.length - 1;
     const mood = MOODS[idx];
-    maybeBuzz(idx, dead, now);
+    maybeBeep(idx, dead, now);
 
     $("mood").textContent = mood.name;
     $("hint").textContent = analyser ? mood.hint : "Tippe auf „Start“ und erlaube das Mikrofon.";
@@ -463,6 +489,7 @@
 
   function loop(now) {
     let { level, db } = readLevel();
+    if (now < deafUntil) level = smoothed;   // eigenen Piepser ignorieren
     if (forced !== null) level = smoothed = +forced;
     // schnell lauter, langsam leiser → Maus erholt sich nur langsam
     const k = level > smoothed ? 0.35 : 0.03;
