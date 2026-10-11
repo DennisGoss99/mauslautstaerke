@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Mäuschen">
+  <meta name="theme-color" content="#fdf6ec">
+  <title>Lautstärke-Mäuschen</title>
+  <style>
+    :root {
+      --bg: #fdf6ec;
+      --fg: #3b2f2a;
+      --muted: #8a7a70;
+      --card: #ffffff;
+      --track: #eadfd2;
+      --accent: #e08aa0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1f1a18;
+        --fg: #f3e9df;
+        --muted: #a8988c;
+        --card: #2b2421;
+        --track: #3d3430;
+        --accent: #f0a2b6;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    main {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 1.25rem;
+      margin: 0;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    #stage {
+      width: 100%;
+      max-width: 360px;
+      aspect-ratio: 1 / 1;
+      position: relative;
+    }
+    #mouse { width: 100%; height: 100%; overflow: visible; }
+    #mouse .shake { transform-origin: 100px 120px; }
+    #mood {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin: 0;
+      min-height: 2rem;
+      text-align: center;
+    }
+    #hint {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: -10px 0 0;
+      text-align: center;
+      min-height: 1.2rem;
+    }
+    .meter {
+      width: 100%;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .meter-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .bar {
+      height: 14px;
+      border-radius: 7px;
+      background: var(--track);
+      overflow: hidden;
+    }
+    .bar > div {
+      height: 100%;
+      width: 0%;
+      border-radius: 7px;
+      background: linear-gradient(90deg, #7cc97c 0%, #e6c94f 45%, #ef8a4a 70%, #d9434a 90%, #5a4a4a 100%);
+      background-size: 360px 100%;
+      transition: width 0.08s linear;
+    }
+    label.sens {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    input[type=range] { flex: 1; accent-color: var(--accent); }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 28px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+    }
+    button:active { transform: scale(0.97); }
+    #error {
+      color: #d9434a;
+      font-size: 0.9rem;
+      text-align: center;
+      margin: 0;
+    }
+    #error:empty { display: none; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>🐭 Lautstärke-Mäuschen</h1>
+
+  <div id="stage">
+    <svg id="mouse" viewBox="0 0 200 200" aria-label="Maus">
+      <defs>
+        <radialGradient id="cheekGrad">
+          <stop offset="0%" stop-color="#ff8fa8" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="#ff8fa8" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- Heiligenschein (nur wenn tot) -->
+      <ellipse id="halo" cx="100" cy="22" rx="34" ry="8" fill="none" stroke="#f2c94c" stroke-width="5" opacity="0"/>
+
+      <g id="shake" class="shake">
+        <g id="body">
+          <!-- Schwanz -->
+          <path id="tail" d="M150 165 C 185 170, 190 140, 175 130 S 160 110, 182 98"
+                fill="none" stroke="#e7a3ae" stroke-width="5" stroke-linecap="round"/>
+
+          <!-- Körper -->
+          <ellipse id="torso" cx="100" cy="160" rx="52" ry="32" fill="#b9b2ad"/>
+          <ellipse id="belly" cx="100" cy="166" rx="30" ry="18" fill="#e9e3de"/>
+
+          <!-- Ohren -->
+          <g id="earL" style="transform-origin: 62px 72px">
+            <circle cx="52" cy="58" r="30" fill="#b9b2ad" class="fur"/>
+            <circle cx="52" cy="58" r="19" fill="#f4b7c3" class="earInner"/>
+          </g>
+          <g id="earR" style="transform-origin: 138px 72px">
+            <circle cx="148" cy="58" r="30" fill="#b9b2ad" class="fur"/>
+            <circle cx="148" cy="58" r="19" fill="#f4b7c3" class="earInner"/>
+          </g>
+
+          <!-- Kopf -->
+          <ellipse id="head" cx="100" cy="108" rx="54" ry="48" fill="#b9b2ad" class="fur"/>
+
+          <!-- Bäckchen -->
+          <circle id="cheekL" cx="66" cy="124" r="13" fill="url(#cheekGrad)"/>
+          <circle id="cheekR" cx="134" cy="124" r="13" fill="url(#cheekGrad)"/>
+
+          <!-- Augen normal -->
+          <g id="eyesOpen">
+            <g>
+              <ellipse id="eyeWhiteL" cx="80" cy="100" rx="9" ry="11" fill="#fff" opacity="0"/>
+              <ellipse id="pupilL" cx="80" cy="100" rx="7" ry="9" fill="#2a1f1c"/>
+              <circle id="glintL" cx="83" cy="96" r="2.6" fill="#fff"/>
+            </g>
+            <g>
+              <ellipse id="eyeWhiteR" cx="120" cy="100" rx="9" ry="11" fill="#fff" opacity="0"/>
+              <ellipse id="pupilR" cx="120" cy="100" rx="7" ry="9" fill="#2a1f1c"/>
+              <circle id="glintR" cx="123" cy="96" r="2.6" fill="#fff"/>
+            </g>
+          </g>
+
+          <!-- Augen glücklich (^ ^) -->
+          <g id="eyesHappy" fill="none" stroke="#2a1f1c" stroke-width="4" stroke-linecap="round" opacity="0">
+            <path d="M71 103 Q 80 92 89 103"/>
+            <path d="M111 103 Q 120 92 129 103"/>
+          </g>
+
+          <!-- Augen ohnmächtig (Spiralen) -->
+          <g id="eyesDizzy" fill="none" stroke="#2a1f1c" stroke-width="2.5" stroke-linecap="round" opacity="0">
+            <path d="M80 100 m0 0 a2 2 0 1 1 3 1 a5 5 0 1 1 -8 -3 a8 8 0 1 1 13 6"/>
+            <path d="M120 100 m0 0 a2 2 0 1 1 3 1 a5 5 0 1 1 -8 -3 a8 8 0 1 1 13 6"/>
+          </g>
+
+          <!-- Augen tot (X X) -->
+          <g id="eyesDead" stroke="#2a1f1c" stroke-width="4" stroke-linecap="round" opacity="0">
+            <path d="M72 92 L88 108 M88 92 L72 108"/>
+            <path d="M112 92 L128 108 M128 92 L112 108"/>
+          </g>
+
+          <!-- Augenbrauen (ängstlich) -->
+          <g id="brows" fill="none" stroke="#5c4f48" stroke-width="3" stroke-linecap="round" opacity="0">
+            <path id="browL" d="M70 84 L88 80"/>
+            <path id="browR" d="M130 84 L112 80"/>
+          </g>
+
+          <!-- Nase -->
+          <ellipse cx="100" cy="118" rx="6" ry="4.5" fill="#e77d93"/>
+
+          <!-- Schnurrhaare -->
+          <g id="whiskers" stroke="#6e625b" stroke-width="1.6" stroke-linecap="round">
+            <path d="M84 120 L52 114"/><path d="M84 124 L50 126"/><path d="M84 128 L54 136"/>
+            <path d="M116 120 L148 114"/><path d="M116 124 L150 126"/><path d="M116 128 L146 136"/>
+          </g>
+
+          <!-- Mund -->
+          <path id="mouth" d="M88 130 Q 100 142 112 130" fill="none" stroke="#2a1f1c" stroke-width="3" stroke-linecap="round"/>
+          <!-- Zunge (tot) -->
+          <path id="tongue" d="M100 133 q 0 12 6 12 q 6 0 5 -10 z" fill="#ef7f95" stroke="#2a1f1c" stroke-width="2" opacity="0"/>
+
+          <!-- Zähnchen -->
+          <g id="teeth" opacity="1">
+            <rect x="95" y="122" width="5" height="6" rx="1" fill="#fff" stroke="#c9c1bb" stroke-width="0.8"/>
+            <rect x="100" y="122" width="5" height="6" rx="1" fill="#fff" stroke="#c9c1bb" stroke-width="0.8"/>
+          </g>
+
+          <!-- Angstschweiß -->
+          <g id="sweat" opacity="0">
+            <path d="M152 78 q 6 10 0 14 q -6 -4 0 -14 z" fill="#8fc7ff"/>
+            <path d="M44 86 q 5 8 0 11 q -5 -3 0 -11 z" fill="#8fc7ff"/>
+          </g>
+
+          <!-- Herzchen (sehr glücklich) -->
+          <g id="hearts" fill="#ff6b8b" opacity="0">
+            <path d="M30 40 c -4 -6 -12 -2 -8 4 l 8 8 l 8 -8 c 4 -6 -4 -10 -8 -4 z"/>
+            <path d="M170 30 c -3 -5 -10 -2 -7 3 l 7 7 l 7 -7 c 3 -5 -4 -8 -7 -3 z"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <p id="mood">…</p>
+  <p id="hint">Tippe auf „Start“ und erlaube das Mikrofon.</p>
+
+  <button id="start">Start 🎤</button>
+  <p id="error"></p>
+
+  <div class="meter">
+    <div class="meter-row">
+      <span>Lautstärke</span>
+      <span id="db">– dB</span>
+    </div>
+    <div class="bar"><div id="level"></div></div>
+    <label class="sens">
+      Empfindlichkeit
+      <input id="sensitivity" type="range" min="0" max="30" step="1" value="12">
+    </label>
+  </div>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  // Stimmungen von "happy" bis "tot". `max` = Obergrenze der Stufe (0–100).
+  const MOODS = [
+    { max: 15,  name: "Überglücklich 🥰", hint: "Herrlich ruhig hier." },
+    { max: 35,  name: "Glücklich 😊",     hint: "Alles gut." },
+    { max: 55,  name: "Nervös 😐",        hint: "Hm, wird etwas laut…" },
+    { max: 72,  name: "Ängstlich 😰",     hint: "Bitte leiser!" },
+    { max: 88,  name: "Panik 😱",         hint: "ZU LAUT!" },
+    { max: 97,  name: "Ohnmächtig 😵",    hint: "Das Mäuschen kippt um…" },
+    { max: 101, name: "Tot 💀",            hint: "Ruhe bringt es langsam zurück." },
+  ];
+
+  let audioCtx, analyser, buf;
+  let smoothed = 0;      // geglätteter Pegel 0–100
+  let deadUntil = 0;     // Zeitpunkt, bis zu dem die Maus "tot" bleibt
+  let t0 = performance.now();
+
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mix = (c1, c2, t) => {
+    const p = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+    const a = p(c1), b = p(c2);
+    return "#" + a.map((v, i) => Math.round(lerp(v, b[i], t)).toString(16).padStart(2, "0")).join("");
+  };
+
+  async function start() {
+    $("error").textContent = "";
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      await audioCtx.resume();
+      const src = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      buf = new Float32Array(analyser.fftSize);
+      src.connect(analyser);
+      $("start").style.display = "none";
+    } catch (e) {
+      $("error").textContent =
+        "Kein Mikrofonzugriff (" + (e.name || e) + "). Die Seite muss über HTTPS laufen und das Mikrofon erlaubt sein.";
+    }
+  }
+  $("start").addEventListener("click", start);
+
+  function readLevel() {
+    if (!analyser) return { level: 0, db: null };
+    analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const rms = Math.sqrt(sum / buf.length);
+    const dbfs = 20 * Math.log10(rms + 1e-9);          // -∞ … 0 dBFS
+    const sens = +$("sensitivity").value;               // verschiebt die Skala
+    // ca. -75 dBFS (sehr leise) … -15 dBFS (sehr laut) → 0 … 100
+    const level = clamp(((dbfs + 75 + sens - 12) / 60) * 100, 0, 100);
+    // grobe Schätzung des Schalldruckpegels für die Anzeige
+    const db = Math.round(clamp(dbfs + 100, 0, 120));
+    return { level, db };
+  }
+
+  function render(level, now) {
+    const t = level / 100;            // 0 = happy, 1 = tot
+    const dead = now < deadUntil;
+    let idx = MOODS.findIndex((m) => level < m.max);
+    if (dead) idx = MOODS.length - 1;
+    const mood = MOODS[idx];
+
+    $("mood").textContent = mood.name;
+    $("hint").textContent = analyser ? mood.hint : "Tippe auf „Start“ und erlaube das Mikrofon.";
+
+    // Fellfarbe: gesund grau-braun → blass → grau-grünlich
+    const fur = dead ? "#9aa39a" : t < 0.6 ? mix("#b9b2ad", "#c8c3c0", t / 0.6) : mix("#c8c3c0", "#a7ada4", (t - 0.6) / 0.4);
+    document.querySelectorAll(".fur").forEach((el) => el.setAttribute("fill", fur));
+    $("torso").setAttribute("fill", fur);
+    document.querySelectorAll(".earInner").forEach((el) =>
+      el.setAttribute("fill", dead ? "#cdb7bb" : mix("#f4b7c3", "#e2c8cc", t)));
+
+    // Bäckchen verblassen
+    const cheek = dead ? 0 : clamp(1 - t * 1.6, 0, 1);
+    $("cheekL").setAttribute("opacity", cheek);
+    $("cheekR").setAttribute("opacity", cheek);
+
+    // Augen
+    const show = (id, on) => ($(id).style.opacity = on ? 1 : 0);
+    show("eyesHappy", !dead && idx === 0);
+    show("eyesOpen",  !dead && idx >= 1 && idx <= 4);
+    show("eyesDizzy", !dead && idx === 5);
+    show("eyesDead",  dead);
+
+    // Angst = große weiße Augen mit kleinen Pupillen
+    const fear = clamp((level - 45) / 40, 0, 1);
+    ["L", "R"].forEach((s) => {
+      $("eyeWhite" + s).setAttribute("opacity", fear);
+      $("eyeWhite" + s).setAttribute("rx", lerp(9, 13, fear));
+      $("eyeWhite" + s).setAttribute("ry", lerp(11, 15, fear));
+      $("pupil" + s).setAttribute("rx", lerp(7, 3.2, fear));
+      $("pupil" + s).setAttribute("ry", lerp(9, 3.6, fear));
+      $("glint" + s).setAttribute("opacity", 1 - fear * 0.7);
+    });
+    show("brows", !dead && idx >= 2 && idx <= 4);
+    const browTilt = lerp(0, 8, fear);
+    $("browL").setAttribute("d", `M70 ${84 - browTilt * 0.2} L88 ${80 - browTilt}`);
+    $("browR").setAttribute("d", `M130 ${84 - browTilt * 0.2} L112 ${80 - browTilt}`);
+
+    // Mund: Lächeln → gerade → zitternd/offen → tot
+    let mouth;
+    if (dead) {
+      mouth = "M86 134 L114 134";
+    } else if (idx >= 4) {
+      // panisch offener Mund
+      const open = lerp(6, 12, clamp((level - 72) / 25, 0, 1));
+      mouth = `M88 136 Q 100 ${136 - open} 112 136 Q 100 ${136 + open} 88 136 Z`;
+    } else {
+      const curve = lerp(14, -10, clamp(level / 72, 0, 1)); // +lächeln / -traurig
+      mouth = `M88 132 Q 100 ${132 + curve} 112 132`;
+    }
+    $("mouth").setAttribute("d", mouth);
+    $("mouth").setAttribute("fill", !dead && idx >= 4 ? "#5a2a2f" : "none");
+    show("tongue", dead);
+    show("teeth", !dead && idx < 4);
+
+    show("sweat", !dead && idx >= 3 && idx <= 4);
+    show("hearts", !dead && idx === 0);
+    $("halo").setAttribute("opacity", dead ? 1 : 0);
+
+    // Ohren hängen lassen
+    const droop = dead ? 35 : lerp(0, 20, t);
+    $("earL").style.transform = `rotate(${-droop}deg)`;
+    $("earR").style.transform = `rotate(${droop}deg)`;
+
+    // Bewegung: fröhlich wippen, ängstlich zittern, ohnmächtig/tot umkippen
+    const sec = (now - t0) / 1000;
+    let tf = "";
+    if (dead) {
+      tf = "rotate(90deg) translate(18px, -10px)";
+    } else if (idx === 5) {
+      tf = `rotate(${lerp(10, 35, (level - 88) / 9)}deg)`;
+    } else if (idx >= 2) {
+      const amp = lerp(0.3, 4, fear);
+      tf = `translate(${(Math.random() - 0.5) * amp * 2}px, ${(Math.random() - 0.5) * amp}px)`;
+    } else {
+      tf = `translateY(${Math.sin(sec * 3) * 2.5}px)`;
+    }
+    $("shake").style.transform = tf;
+    $("tail").setAttribute("d", dead
+      ? "M150 165 C 175 170, 185 168, 195 168"
+      : `M150 165 C 185 170, 190 140, 175 130 S 160 110, ${182 + Math.sin(sec * 4) * (1 - t) * 6} 98`);
+
+    // Pegelanzeige
+    $("level").style.width = level.toFixed(1) + "%";
+  }
+
+  // Vorschau ohne Mikrofon: index.html?level=0…100
+  const forced = new URLSearchParams(location.search).get("level");
+
+  function loop(now) {
+    let { level, db } = readLevel();
+    if (forced !== null) level = smoothed = +forced;
+    // schnell lauter, langsam leiser → Maus erholt sich nur langsam
+    const k = level > smoothed ? 0.35 : 0.03;
+    smoothed += (level - smoothed) * k;
+    if (smoothed >= MOODS[MOODS.length - 2].max) deadUntil = now + 4000;
+    $("db").textContent = db == null ? "– dB" : `≈ ${db} dB`;
+    render(smoothed, now);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
