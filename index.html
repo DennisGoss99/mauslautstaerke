@@ -141,11 +141,39 @@
     #error:empty { display: none; }
 
     /* Auswertung */
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    button.secondary { background: var(--card); color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent); }
+
+    /* Overlay (Bottom-Sheet) für die Auswertung */
+    .sheet { position: fixed; inset: 0; z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
+    .sheet[hidden] { display: none; }
+    .sheet-backdrop { position: absolute; inset: 0; background: rgba(20, 12, 10, 0.45); animation: fade 0.2s ease-out; }
+    .sheet-panel {
+      position: relative; width: 100%; max-width: 520px; max-height: 88%;
+      overflow-y: auto; overscroll-behavior: contain;
+      border-radius: 22px 22px 0 0;
+      padding: 10px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+      animation: slideUp 0.25s ease-out;
+    }
+    .sheet-panel::before {
+      content: ""; display: block; width: 40px; height: 5px; border-radius: 3px;
+      background: var(--track); margin: 0 auto 6px;
+    }
+    .close {
+      width: 34px; height: 34px; padding: 0; border-radius: 50%;
+      background: var(--track); color: var(--fg); font-size: 1rem; line-height: 34px;
+    }
+    @keyframes fade { from { opacity: 0; } }
+    @keyframes slideUp { from { transform: translateY(100%); } }
+    @media (prefers-reduced-motion: reduce) { .sheet-backdrop, .sheet-panel { animation: none; } }
+    body.sheet-open { overflow: hidden; }
+
     .report { display: flex; flex-direction: column; gap: 14px; }
     .report-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
     .report h2 { font-size: 1.05rem; margin: 0; }
-    .seg { display: inline-flex; background: var(--track); border-radius: 999px; padding: 3px; gap: 2px; }
+    .seg { display: flex; background: var(--track); border-radius: 999px; padding: 3px; gap: 2px; }
     .seg button {
+      flex: 1; white-space: nowrap;
       padding: 6px 12px; font-size: 0.8rem; font-weight: 600;
       background: transparent; color: var(--muted); border-radius: 999px;
     }
@@ -291,7 +319,10 @@
   <p id="mood">…</p>
   <p id="hint">Tippe auf „Start“ und erlaube das Mikrofon.</p>
 
-  <button id="start">Start 🎤</button>
+  <div class="controls">
+    <button id="start">Start 🎤</button>
+    <button id="openReport" class="secondary">📊 Auswertung</button>
+  </div>
   <p id="error"></p>
 
   <div class="meter">
@@ -305,14 +336,17 @@
       <input id="sensitivity" type="range" min="0" max="30" step="1" value="12">
     </label>
   </div>
-  <section class="meter report" aria-labelledby="reportTitle">
+  <div class="sheet" id="sheet" hidden>
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <section class="meter report sheet-panel" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
     <div class="report-head">
-      <h2 id="reportTitle">Auswertung</h2>
-      <div class="seg" role="group" aria-label="Zeitraum">
-        <button data-range="300" aria-pressed="false">5 Min</button>
-        <button data-range="3600" aria-pressed="false">1 Std</button>
-        <button data-range="0" aria-pressed="true">Alles</button>
-      </div>
+      <h2 id="reportTitle">📊 Auswertung</h2>
+      <button class="close" id="closeReport" aria-label="Schließen">✕</button>
+    </div>
+    <div class="seg" role="group" aria-label="Zeitraum">
+      <button data-range="300" aria-pressed="false">5 Min</button>
+      <button data-range="3600" aria-pressed="false">1 Std</button>
+      <button data-range="0" aria-pressed="true">Alles</button>
     </div>
     <div class="stats">
       <div class="stat"><span class="v" id="sDur">0:00</span><span class="k">gemessen</span></div>
@@ -328,6 +362,7 @@
     <div class="moods" id="moods"></div>
     <button class="link" id="reset">Auswertung löschen</button>
   </section>
+  </div>
 </main>
 
 <script>
@@ -681,9 +716,26 @@
     drawReport();
   });
 
-  setInterval(() => { if ($("tip").hidden) drawReport(); }, 2000);
-  addEventListener("resize", drawReport);
-  drawReport();
+  const isOpen = () => !$("sheet").hidden;
+  function openReport() {
+    $("sheet").hidden = false;
+    document.body.classList.add("sheet-open");
+    drawReport();
+    $("closeReport").focus();
+  }
+  function closeReport() {
+    $("sheet").hidden = true;
+    document.body.classList.remove("sheet-open");
+    hideTip();
+    $("openReport").focus();
+  }
+  $("openReport").addEventListener("click", openReport);
+  $("closeReport").addEventListener("click", closeReport);
+  $("sheetBackdrop").addEventListener("click", closeReport);
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && isOpen()) closeReport(); });
+
+  setInterval(() => { if (isOpen() && $("tip").hidden) drawReport(); }, 2000);
+  addEventListener("resize", () => { if (isOpen()) drawReport(); });
 
   // Vorschau ohne Mikrofon: index.html?level=0…100
   const forced = new URLSearchParams(location.search).get("level");
