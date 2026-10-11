@@ -196,6 +196,19 @@
     .moods .bar > div { background: var(--series); transition: none; }
     .moods .t { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
     .empty { color: var(--muted); font-size: 0.85rem; text-align: center; margin: 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      padding: 8px 14px; font-size: 0.9rem; font-weight: 600;
+      background: var(--track); color: var(--fg);
+    }
+    .chip[aria-pressed="true"] { background: var(--accent); color: #fff; }
+    .minutes { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
+    .minutes input {
+      width: 110px; font: inherit; font-size: 1.3rem; font-weight: 800; text-align: center;
+      padding: 8px 10px; border-radius: 12px; border: 2px solid var(--track);
+      background: var(--bg); color: var(--fg);
+    }
+    .minutes input:focus { outline: none; border-color: var(--accent); }
     .notes { display: flex; flex-direction: column; gap: 14px; }
     .notes h3 { margin: 0 0 4px; font-size: 0.95rem; }
     .notes h3 span { color: var(--muted); font-weight: 500; font-size: 0.8rem; margin-left: 6px; }
@@ -311,6 +324,18 @@
           </g>
 
           <!-- Herzchen (sehr glücklich) -->
+          <!-- Kopfhörer (Auszeit) -->
+          <g id="headphones" opacity="0">
+            <path d="M47 112 C 40 36, 160 36, 153 112" fill="none" stroke="#3d4266" stroke-width="7" stroke-linecap="round"/>
+            <rect x="34" y="94" width="22" height="38" rx="10" fill="#6b78e5" stroke="#3d4266" stroke-width="3"/>
+            <rect x="144" y="94" width="22" height="38" rx="10" fill="#6b78e5" stroke="#3d4266" stroke-width="3"/>
+          </g>
+          <!-- Musiknoten (Auszeit) -->
+          <g id="notes" fill="#6b78e5" opacity="0">
+            <g id="note1"><ellipse cx="172" cy="52" rx="6" ry="4.5"/><rect x="176" y="28" width="2.5" height="24"/><path d="M176 28 q 9 2 10 10 q -4 -5 -10 -5 z"/></g>
+            <g id="note2"><ellipse cx="24" cy="78" rx="5" ry="4"/><rect x="27.5" y="58" width="2.2" height="20"/><ellipse cx="40" cy="74" rx="5" ry="4"/><rect x="43.5" y="54" width="2.2" height="20"/><rect x="27.5" y="54" width="18" height="3"/></g>
+          </g>
+
           <g id="hearts" fill="#ff6b8b" opacity="0">
             <path d="M30 40 c -4 -6 -12 -2 -8 4 l 8 8 l 8 -8 c 4 -6 -4 -10 -8 -4 z"/>
             <path d="M170 30 c -3 -5 -10 -2 -7 3 l 7 7 l 7 -7 c 3 -5 -4 -8 -7 -3 z"/>
@@ -326,6 +351,7 @@
   <div class="controls">
     <button id="start">Start 🎤</button>
     <button id="openReport" class="secondary">📊 Auswertung</button>
+    <button id="breakBtn" class="secondary">🎧 Auszeit</button>
   </div>
   <p id="error"></p>
 
@@ -371,6 +397,30 @@
   </div>
   <button class="link" id="openNotes">Version <span id="appVersion"></span> · Was ist neu?</button>
 
+  <div class="sheet" id="breakSheet" hidden>
+  <div class="sheet-backdrop" id="breakBackdrop"></div>
+  <section class="meter report sheet-panel" role="dialog" aria-modal="true" aria-labelledby="breakTitle">
+    <div class="report-head">
+      <h2 id="breakTitle">🎧 Auszeit fürs Mäuschen</h2>
+      <button class="close" id="closeBreak" aria-label="Schließen">✕</button>
+    </div>
+    <p class="empty" style="text-align:left">Das Mäuschen setzt Kopfhörer auf und hört Musik. Solange die Auszeit läuft, ist ihm Lärm egal.</p>
+    <div class="chips" role="group" aria-label="Schnellauswahl">
+      <button class="chip" data-min="5">5 min</button>
+      <button class="chip" data-min="10">10 min</button>
+      <button class="chip" data-min="15">15 min</button>
+      <button class="chip" data-min="30">30 min</button>
+      <button class="chip" data-min="60">60 min</button>
+    </div>
+    <label class="minutes" for="breakMin">
+      <span>Minuten</span>
+      <input id="breakMin" type="number" inputmode="numeric" min="1" max="600" step="1" value="10">
+    </label>
+    <p id="breakErr" class="empty" hidden></p>
+    <button id="startBreak">Auszeit starten</button>
+  </section>
+  </div>
+
   <div class="sheet" id="notesSheet" hidden>
   <div class="sheet-backdrop" id="notesBackdrop"></div>
   <section class="meter report sheet-panel" role="dialog" aria-modal="true" aria-labelledby="notesTitle">
@@ -405,6 +455,14 @@
   const QUIET_BELOW = 72;      // unter "Panik" gilt als nicht mehr sehr laut
   const STAY_QUIET_MS = 15000; // so lange muss es ruhig bleiben
   const EMERGE_MS = 4000;      // so lange dauert das Rauskommen
+  // Auszeit: in der Auswertung als eigene Zeile nach den Stimmungen
+  const BREAK = MOODS.length;
+  const LABELS = [...MOODS.map((m) => m.name), "Auszeit 🎧"];
+  const BREAK_KEY = "maus-auszeit-bis";
+  let breakUntil = 0;
+  try { breakUntil = +localStorage.getItem(BREAK_KEY) || 0; } catch (e) {}
+  const onBreak = () => Date.now() < breakUntil;
+
   let hiding = false;
   let quietSince = null;
   let emergeStart = null;
@@ -638,7 +696,7 @@
 
     // Kennzahlen
     let sum = 0, max = -1, maxT = 0, deaths = 0;
-    const perMood = MOODS.map(() => 0);
+    const perMood = LABELS.map(() => 0);
     data.forEach(([t, db, m], i) => {
       sum += db;
       if (db > max) { max = db; maxT = t; }
@@ -654,10 +712,10 @@
     // Zeit pro Stimmung
     const total = data.length || 1;
     $("moods").innerHTML = "";
-    if (data.length) MOODS.forEach((mood, i) => {
+    if (data.length) LABELS.forEach((label, i) => {
       const pct = (perMood[i] / total) * 100;
       const name = document.createElement("span");
-      name.textContent = mood.name;
+      name.textContent = label;
       const bar = document.createElement("div");
       bar.className = "bar";
       bar.innerHTML = `<div style="width:${pct.toFixed(1)}%"></div>`;
@@ -747,7 +805,7 @@
     document.getElementById("hDot").setAttribute("cy", best.Y);
     const tip = $("tip");
     tip.hidden = false;
-    tip.innerHTML = `${fmtTime(best.t, true)}<br><b>${Math.round(best.db)} dB</b> · ${MOODS[best.m].name}`;
+    tip.innerHTML = `${fmtTime(best.t, true)}<br><b>${Math.round(best.db)} dB</b> · ${LABELS[best.m]}`;
     const left = (best.X / (svg.viewBox.baseVal.width || r.width)) * r.width;
     tip.style.left = Math.min(Math.max(left, 70), r.width - 70) + "px";
     tip.style.top = "-8px";
@@ -823,7 +881,7 @@
 
     // Kennzahlen
     let sum = 0, max = -1, maxT = 0;
-    const perMood = MOODS.map(() => 0);
+    const perMood = LABELS.map(() => 0);
     const holes = [];
     data.forEach(([t, db, m], i) => {
       sum += db;
@@ -896,10 +954,10 @@
     doc.text("Zeit pro Stimmung", M, y);
     y += 6;
     const barX = M + 42, barW = 90;
-    MOODS.forEach((mood, i) => {
+    LABELS.forEach((label, i) => {
       const pct = perMood[i] / data.length;
       doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(...ink);
-      doc.text(plain(mood.name), M, y + 3);
+      doc.text(plain(label), M, y + 3);
       doc.setFillColor(...grid); doc.roundedRect(barX, y, barW, 3.5, 1.2, 1.2, "F");
       if (pct > 0) { doc.setFillColor(...line); doc.roundedRect(barX, y, Math.max(2.4, barW * pct), 3.5, 1.2, 1.2, "F"); }
       doc.setTextColor(...muted);
@@ -960,8 +1018,72 @@
     doc.save(name);
   });
 
+  // ---------- Auszeit mit Kopfhörern ----------
+  let lastBr = null;
+  const fmtLeft = (ms) => {
+    const sec = Math.ceil(ms / 1000), h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
+    return h ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+  };
+  function renderBreak(br, now) {
+    if (br !== lastBr) {
+      lastBr = br;
+      $("breakBtn").textContent = br ? "🎧 Auszeit beenden" : "🎧 Auszeit";
+      $("breakBtn").setAttribute("aria-pressed", br);
+      $("headphones").setAttribute("opacity", br ? 1 : 0);
+      $("notes").setAttribute("opacity", br ? 1 : 0);
+    }
+    if (!br) return;
+    curIdx = BREAK;
+    $("eyesHappy").style.opacity = 1;   // Augen zu, genießt die Musik
+    $("eyesOpen").style.opacity = 0;
+    $("hearts").style.opacity = 0;
+    $("mood").textContent = "Auszeit 🎧";
+    $("hint").textContent = `Noch ${fmtLeft(breakUntil - Date.now())} – Lärm ist gerade egal.`;
+    const sec = now / 1000;
+    $("shake").style.transform = `rotate(${Math.sin(sec * 2.2) * 4}deg)`;   // wippt im Takt
+    $("note1").style.transform = `translate(${Math.sin(sec * 1.7) * 3}px, ${-((sec * 12) % 18)}px)`;
+    $("note2").style.transform = `translate(${Math.cos(sec * 1.3) * 3}px, ${-(((sec + 0.7) * 10) % 16)}px)`;
+  }
+
+  function setBreak(until) {
+    breakUntil = until;
+    try { until ? localStorage.setItem(BREAK_KEY, String(until)) : localStorage.removeItem(BREAK_KEY); } catch (e) {}
+  }
+  const toggleBreakSheet = (open) => {
+    $("breakSheet").hidden = !open;
+    document.body.classList.toggle("sheet-open", open);
+    (open ? $("breakMin") : $("breakBtn")).focus();
+  };
+  const markChip = () => document.querySelectorAll(".chip").forEach((c) =>
+    c.setAttribute("aria-pressed", c.dataset.min === $("breakMin").value));
+  $("breakBtn").addEventListener("click", () => {
+    if (onBreak()) { setBreak(0); return; }   // läuft schon → beenden
+    $("breakErr").hidden = true;
+    markChip();
+    toggleBreakSheet(true);
+  });
+  document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => {
+    $("breakMin").value = c.dataset.min;
+    markChip();
+  }));
+  $("breakMin").addEventListener("input", () => { markChip(); $("breakErr").hidden = true; });
+  $("startBreak").addEventListener("click", () => {
+    const min = Math.round(Number($("breakMin").value));
+    if (!Number.isFinite(min) || min < 1 || min > 600) {
+      $("breakErr").textContent = "Bitte eine Zahl von 1 bis 600 Minuten eingeben.";
+      $("breakErr").hidden = false;
+      return;
+    }
+    setBreak(Date.now() + min * 60000);
+    toggleBreakSheet(false);
+  });
+  $("closeBreak").addEventListener("click", () => toggleBreakSheet(false));
+  $("breakBackdrop").addEventListener("click", () => toggleBreakSheet(false));
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("breakSheet").hidden) toggleBreakSheet(false); });
+
   // ---------- Release Notes ----------
   const RELEASES = [
+    { v: 10, date: "11.10.2026", items: ["🎧 Auszeit: Das Mäuschen setzt Kopfhörer auf und hört Musik. Die Minuten stellst du selbst ein (1–600).", "Während der Auszeit ist dem Mäuschen Lärm egal, ein Countdown zeigt die Restzeit.", "Die Auszeit läuft auch nach dem Neuladen weiter und erscheint in der Auswertung und im PDF als eigene Zeile."] },
     { v: 9, date: "11.10.2026", items: ["„Was ist neu?“: Release Notes direkt in der App."] },
     { v: 8, date: "11.10.2026", items: ["PDF-Bericht in der Auswertung: Kennzahlen, Diagramm, Zeit pro Stimmung und Mauseloch-Momente.", "Auf dem iPhone über das Teilen-Menü speichern oder verschicken."] },
     { v: 7, date: "11.10.2026", items: ["Das Mäuschen bleibt im Mauseloch, bis es 15 s lang nicht mehr sehr laut war.", "Danach krabbelt es langsam heraus. Wird es dabei laut, flitzt es zurück."] },
@@ -1026,8 +1148,11 @@
     const k = level > smoothed ? 0.35 : 0.03;
     smoothed += (level - smoothed) * k;
     updateHiding(now);
+    const br = onBreak();
+    if (br) { hiding = false; quietSince = null; emergeStart = null; }
     $("db").textContent = db == null ? "– dB" : `≈ ${db} dB`;
-    render(smoothed, now);
+    render(br ? 3 : smoothed, now);   // in der Auszeit ist Lärm egal
+    renderBreak(br, now);
     if (analyser && db != null) record(db, now);
     requestAnimationFrame(loop);
   }

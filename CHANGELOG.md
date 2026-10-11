@@ -2,6 +2,11 @@
 
 Webseite: https://dennisgoss99.github.io/mauslautstaerke/
 
+## Version 10 – 11.10.2026
+- 🎧 Auszeit: Das Mäuschen setzt Kopfhörer auf und hört Musik. Die Minuten stellst du selbst ein (1–600).
+- Während der Auszeit ist dem Mäuschen Lärm egal, ein Countdown zeigt die Restzeit.
+- Die Auszeit läuft auch nach dem Neuladen weiter und erscheint in der Auswertung und im PDF als eigene Zeile.
+
 ## Version 9 – 11.10.2026
 - „Was ist neu?“: Release Notes direkt in der App (Link unten auf der Seite).
 
