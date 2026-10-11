@@ -16,7 +16,9 @@ Safari erlaubt das Mikrofon nur über **HTTPS**. Am einfachsten über GitHub Pag
 3. Auf **Start 🎤** tippen und das Mikrofon erlauben.
 4. Optional: Teilen → *Zum Home-Bildschirm*.
 
-Mit „Warnton an 🔔“ piepst das Mäuschen, sobald es Angst bekommt (je lauter, desto öfter), und gibt einen traurigen Ton von sich, wenn es tot ist.
+Unten zeigt die **Auswertung** den Verlauf: Messdauer, Ø und maximale Lautstärke, wie oft das Mäuschen gestorben ist,
+ein Diagramm über die Zeit (5 Min / 1 Std / Alles) und wie lange es in welcher Stimmung war.
+Die Messwerte bleiben im Browser auf dem Handy gespeichert (max. 6 Stunden).
 
 Mit dem Regler „Empfindlichkeit“ lässt sich einstellen, wie schnell das Mäuschen Angst bekommt.
 

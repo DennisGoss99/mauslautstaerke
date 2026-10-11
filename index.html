@@ -16,6 +16,9 @@
       --card: #ffffff;
       --track: #eadfd2;
       --accent: #e08aa0;
+      --series: #b04a68;
+      --grid: #eadfd2;
+      --critical: #c62f3c;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -25,6 +28,9 @@
         --card: #2b2421;
         --track: #3d3430;
         --accent: #f0a2b6;
+        --series: #f0a2b6;
+        --grid: #3d3430;
+        --critical: #ff6b75;
       }
     }
     * { box-sizing: border-box; }
@@ -133,9 +139,36 @@
       margin: 0;
     }
     #error:empty { display: none; }
-    .controls { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-    button.secondary { background: var(--card); color: var(--fg); box-shadow: inset 0 0 0 2px var(--accent); }
-    button.secondary[aria-pressed="true"] { background: var(--accent); color: #fff; }
+
+    /* Auswertung */
+    .report { display: flex; flex-direction: column; gap: 14px; }
+    .report-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .report h2 { font-size: 1.05rem; margin: 0; }
+    .seg { display: inline-flex; background: var(--track); border-radius: 999px; padding: 3px; gap: 2px; }
+    .seg button {
+      padding: 6px 12px; font-size: 0.8rem; font-weight: 600;
+      background: transparent; color: var(--muted); border-radius: 999px;
+    }
+    .seg button[aria-pressed="true"] { background: var(--card); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
+    .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .stat { display: flex; flex-direction: column; gap: 2px; }
+    .stat .v { font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .stat .k { font-size: 0.78rem; color: var(--muted); }
+    .chart-wrap { position: relative; }
+    #chart { display: block; width: 100%; height: 180px; touch-action: pan-y; }
+    #chart text { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+    #tip {
+      position: absolute; top: 0; pointer-events: none;
+      background: var(--fg); color: var(--bg);
+      font-size: 0.75rem; line-height: 1.35; padding: 6px 8px; border-radius: 8px;
+      white-space: nowrap; transform: translateX(-50%);
+    }
+    .moods { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; font-size: 0.82rem; }
+    .moods .bar { height: 10px; }
+    .moods .bar > div { background: var(--series); transition: none; }
+    .moods .t { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+    .empty { color: var(--muted); font-size: 0.85rem; text-align: center; margin: 0; }
+    button.link { background: none; color: var(--muted); padding: 4px; font-size: 0.8rem; font-weight: 600; text-decoration: underline; align-self: center; }
   </style>
 </head>
 <body>
@@ -258,10 +291,7 @@
   <p id="mood">…</p>
   <p id="hint">Tippe auf „Start“ und erlaube das Mikrofon.</p>
 
-  <div class="controls">
-    <button id="start">Start 🎤</button>
-    <button id="sound" class="secondary" aria-pressed="false">Warnton aus 🔇</button>
-  </div>
+  <button id="start">Start 🎤</button>
   <p id="error"></p>
 
   <div class="meter">
@@ -275,6 +305,29 @@
       <input id="sensitivity" type="range" min="0" max="30" step="1" value="12">
     </label>
   </div>
+  <section class="meter report" aria-labelledby="reportTitle">
+    <div class="report-head">
+      <h2 id="reportTitle">Auswertung</h2>
+      <div class="seg" role="group" aria-label="Zeitraum">
+        <button data-range="300" aria-pressed="false">5 Min</button>
+        <button data-range="3600" aria-pressed="false">1 Std</button>
+        <button data-range="0" aria-pressed="true">Alles</button>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="v" id="sDur">0:00</span><span class="k">gemessen</span></div>
+      <div class="stat"><span class="v" id="sAvg">–</span><span class="k">Ø Lautstärke</span></div>
+      <div class="stat"><span class="v" id="sMax">–</span><span class="k">lauteste Sekunde</span></div>
+      <div class="stat"><span class="v" id="sDeaths">0</span><span class="k">Mal gestorben 💀</span></div>
+    </div>
+    <div class="chart-wrap">
+      <svg id="chart" role="img" aria-label="Lautstärke über die Zeit"></svg>
+      <div id="tip" hidden></div>
+    </div>
+    <p class="empty" id="empty">Noch keine Messung. Tippe auf „Start“, dann füllt sich die Auswertung jede Sekunde.</p>
+    <div class="moods" id="moods"></div>
+    <button class="link" id="reset">Auswertung löschen</button>
+  </section>
 </main>
 
 <script>
@@ -311,70 +364,22 @@
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
       });
-      await getCtx();
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      await audioCtx.resume();
       const src = audioCtx.createMediaStreamSource(stream);
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 2048;
       buf = new Float32Array(analyser.fftSize);
       src.connect(analyser);
       $("start").style.display = "none";
+      // Bildschirm anlassen, sonst stoppt iOS das Mikrofon
+      try { if (navigator.wakeLock) await navigator.wakeLock.request("screen"); } catch (e) {}
     } catch (e) {
       $("error").textContent =
         "Kein Mikrofonzugriff (" + (e.name || e) + "). Die Seite muss über HTTPS laufen und das Mikrofon erlaubt sein.";
     }
   }
   $("start").addEventListener("click", start);
-
-  function getCtx() {
-    // iPhone: Ton auch im Lautlos-Modus abspielen (Safari 16.4+)
-    try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch (e) {}
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    return audioCtx.resume();
-  }
-
-  // Warnton, wenn es zu laut ist (ab "Ängstlich"): das Mäuschen piepst
-  let soundOn = false;
-  let nextBeep = 0;
-  let deafUntil = 0;   // solange der Piepser läuft, hört das Mikro weg (sonst Rückkopplung)
-
-  function tone(f0, f1, dur, vol) {
-    const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(f0, t);
-    osc.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(vol, t + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t);
-    osc.stop(t + dur + 0.02);
-    deafUntil = performance.now() + dur * 1000 + 250;
-  }
-  const squeak = () => tone(1800, 3200, 0.12, 0.5);   // "piep!"
-  const sadTone = () => tone(700, 180, 0.9, 0.4);     // "wüüü" – tot
-
-  $("sound").addEventListener("click", async () => {
-    soundOn = !soundOn;
-    $("sound").setAttribute("aria-pressed", soundOn);
-    $("sound").textContent = soundOn ? "Warnton an 🔔" : "Warnton aus 🔇";
-    if (soundOn) { await getCtx(); squeak(); }
-    if (navigator.vibrate) navigator.vibrate(soundOn ? 80 : 0);
-  });
-
-  function maybeBeep(idx, dead, now) {
-    if (!soundOn || !audioCtx || idx < 3 || now < nextBeep) return;
-    if (dead) {
-      sadTone();
-      nextBeep = now + 2000;
-    } else {
-      squeak();
-      if (idx >= 4) setTimeout(squeak, 160);           // Panik: doppelt piepsen
-      if (navigator.vibrate) navigator.vibrate(100);   // Android vibriert zusätzlich
-      nextBeep = now + [0, 0, 0, 1200, 700, 450][idx];
-    }
-  }
 
   function readLevel() {
     if (!analyser) return { level: 0, db: null };
@@ -397,7 +402,7 @@
     let idx = MOODS.findIndex((m) => level < m.max);
     if (dead) idx = MOODS.length - 1;
     const mood = MOODS[idx];
-    maybeBeep(idx, dead, now);
+    curIdx = idx;
 
     $("mood").textContent = mood.name;
     $("hint").textContent = analyser ? mood.hint : "Tippe auf „Start“ und erlaube das Mikrofon.";
@@ -484,12 +489,207 @@
     $("level").style.width = level.toFixed(1) + "%";
   }
 
+  // ---------- Auswertung über die Zeit ----------
+  // Eine Messung pro Sekunde: [Zeit in ms, Ø dB, schlimmste Stimmung (Index in MOODS)]
+  const KEY = "maus-verlauf-v1";
+  const MAX_SAMPLES = 6 * 3600;                 // max. 6 Stunden
+  let curIdx = 0;
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) {}
+  let acc = { sum: 0, n: 0, worst: 0, start: 0 };
+  let range = 0;                                 // Sekunden, 0 = alles
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(history)); } catch (e) {}
+  }
+
+  function record(db, now) {
+    if (!acc.n) acc.start = now;
+    acc.sum += db; acc.n++; acc.worst = Math.max(acc.worst, curIdx);
+    if (now - acc.start < 1000) return;
+    history.push([Date.now(), Math.round(acc.sum / acc.n), acc.worst]);
+    if (history.length > MAX_SAMPLES) history.splice(0, history.length - MAX_SAMPLES);
+    acc = { sum: 0, n: 0, worst: 0, start: 0 };
+    if (history.length % 10 === 0) save();
+  }
+  addEventListener("pagehide", save);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
+
+  const fmtDur = (sec) => {
+    const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
+    return h ? `${h}:${String(m).padStart(2, "0")} h` : `${m}:${String(s).padStart(2, "0")}`;
+  };
+  const fmtTime = (t, withSec) =>
+    new Date(t).toLocaleTimeString("de-DE", withSec ? {} : { hour: "2-digit", minute: "2-digit" });
+
+  function visible() {
+    if (!range) return history;
+    const from = Date.now() - range * 1000;
+    let i = history.length;
+    while (i > 0 && history[i - 1][0] >= from) i--;
+    return history.slice(i);
+  }
+
+  let chartPts = [];
+  function drawReport() {
+    const data = visible();
+    $("empty").hidden = data.length > 0;
+    $("chart").parentElement.hidden = data.length < 2;
+
+    // Kennzahlen
+    let sum = 0, max = -1, maxT = 0, deaths = 0;
+    const perMood = MOODS.map(() => 0);
+    data.forEach(([t, db, m], i) => {
+      sum += db;
+      if (db > max) { max = db; maxT = t; }
+      perMood[m]++;
+      if (m === MOODS.length - 1 && (i === 0 || data[i - 1][2] !== m)) deaths++;
+    });
+    $("sDur").textContent = fmtDur(data.length);
+    $("sAvg").textContent = data.length ? `${Math.round(sum / data.length)} dB` : "–";
+    $("sMax").textContent = data.length ? `${max} dB` : "–";
+    $("sMax").title = data.length ? "um " + fmtTime(maxT, true) : "";
+    $("sDeaths").textContent = deaths;
+
+    // Zeit pro Stimmung
+    const total = data.length || 1;
+    $("moods").innerHTML = "";
+    if (data.length) MOODS.forEach((mood, i) => {
+      const pct = (perMood[i] / total) * 100;
+      const name = document.createElement("span");
+      name.textContent = mood.name;
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      bar.innerHTML = `<div style="width:${pct.toFixed(1)}%"></div>`;
+      const t = document.createElement("span");
+      t.className = "t";
+      t.textContent = `${fmtDur(perMood[i])} · ${Math.round(pct)} %`;
+      $("moods").append(name, bar, t);
+    });
+
+    if (data.length < 2) return;
+    drawChart(data);
+  }
+
+  function drawChart(data) {
+    const svg = $("chart");
+    const W = svg.clientWidth || 320, H = 180;
+    const L = 32, R = 8, T = 10, B = 22;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+    // auf höchstens ~1 Punkt pro 2 Pixel verdichten (Ø dB, schlimmste Stimmung)
+    const per = Math.max(1, Math.ceil(data.length / ((W - L - R) / 2)));
+    const pts = [];
+    for (let i = 0; i < data.length; i += per) {
+      const chunk = data.slice(i, i + per);
+      pts.push({
+        t: chunk[0][0],
+        db: chunk.reduce((a, d) => a + d[1], 0) / chunk.length,
+        m: Math.max(...chunk.map((d) => d[2])),
+        gapBefore: i > 0 && chunk[0][0] - data[i - 1][0] > 5000,
+      });
+    }
+    const t0 = pts[0].t, t1 = pts[pts.length - 1].t || t0 + 1;
+    let lo = Math.min(...pts.map((p) => p.db)), hi = Math.max(...pts.map((p) => p.db));
+    lo = Math.floor((lo - 5) / 10) * 10; hi = Math.ceil((hi + 5) / 10) * 10;
+    const x = (t) => L + ((t - t0) / Math.max(1, t1 - t0)) * (W - L - R);
+    const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+
+    let g = "";
+    // Gitter + y-Achse
+    const step = hi - lo > 40 ? 20 : 10;
+    for (let v = lo; v <= hi; v += step) {
+      g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/>`;
+      g += `<text x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${v}</text>`;
+    }
+    // x-Achse: Anfang, Mitte, Ende
+    const withSec = t1 - t0 < 10 * 60 * 1000;
+    [[t0, "start"], [(t0 + t1) / 2, "middle"], [t1, "end"]].forEach(([t, a]) => {
+      g += `<text x="${x(t)}" y="${H - 6}" text-anchor="${a}">${fmtTime(t, withSec)}</text>`;
+    });
+    g += `<text x="${L - 6}" y="${T - 1}" text-anchor="end">dB</text>`;
+
+    // Linie + Fläche, mit Lücken, wenn nicht gemessen wurde
+    const segs = [[]];
+    pts.forEach((p) => { if (p.gapBefore) segs.push([]); segs[segs.length - 1].push(p); });
+    segs.forEach((seg) => {
+      if (!seg.length) return;
+      const line = seg.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)} ${y(p.db).toFixed(1)}`).join("");
+      const base = y(lo);
+      g += `<path d="${line}L${x(seg[seg.length - 1].t).toFixed(1)} ${base}L${x(seg[0].t).toFixed(1)} ${base}Z" fill="var(--series)" opacity="0.12"/>`;
+      g += `<path d="${line}" fill="none" stroke="var(--series)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    });
+
+    // Todesmomente markieren
+    pts.forEach((p, i) => {
+      if (p.m === MOODS.length - 1 && (i === 0 || pts[i - 1].m !== p.m)) {
+        g += `<circle cx="${x(p.t)}" cy="${y(p.db)}" r="4.5" fill="var(--critical)" stroke="var(--card)" stroke-width="2"/>`;
+      }
+    });
+
+    g += `<g id="hover" visibility="hidden"><line id="hLine" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/><circle id="hDot" r="4.5" fill="var(--series)" stroke="var(--card)" stroke-width="2"/></g>`;
+    svg.innerHTML = g;
+    chartPts = pts.map((p) => ({ ...p, X: x(p.t), Y: y(p.db) }));
+  }
+
+  // Tooltip: Finger/Maus über das Diagramm
+  function showTip(ev) {
+    if (!chartPts.length) return;
+    const svg = $("chart"), r = svg.getBoundingClientRect();
+    const px = ((ev.clientX - r.left) / r.width) * (svg.viewBox.baseVal.width || r.width);
+    let best = chartPts[0];
+    for (const p of chartPts) if (Math.abs(p.X - px) < Math.abs(best.X - px)) best = p;
+    const hov = document.getElementById("hover");
+    hov.setAttribute("visibility", "visible");
+    document.getElementById("hLine").setAttribute("x1", best.X);
+    document.getElementById("hLine").setAttribute("x2", best.X);
+    document.getElementById("hDot").setAttribute("cx", best.X);
+    document.getElementById("hDot").setAttribute("cy", best.Y);
+    const tip = $("tip");
+    tip.hidden = false;
+    tip.innerHTML = `${fmtTime(best.t, true)}<br><b>${Math.round(best.db)} dB</b> · ${MOODS[best.m].name}`;
+    const left = (best.X / (svg.viewBox.baseVal.width || r.width)) * r.width;
+    tip.style.left = Math.min(Math.max(left, 70), r.width - 70) + "px";
+    tip.style.top = "-8px";
+  }
+  function hideTip() {
+    $("tip").hidden = true;
+    const hov = document.getElementById("hover");
+    if (hov) hov.setAttribute("visibility", "hidden");
+  }
+  $("chart").addEventListener("pointermove", showTip);
+  $("chart").addEventListener("pointerdown", showTip);
+  $("chart").addEventListener("pointerleave", hideTip);
+
+  document.querySelectorAll(".seg button").forEach((b) =>
+    b.addEventListener("click", () => {
+      range = +b.dataset.range;
+      document.querySelectorAll(".seg button").forEach((o) => o.setAttribute("aria-pressed", o === b));
+      drawReport();
+    }));
+
+  let confirmReset = false;
+  $("reset").addEventListener("click", () => {
+    if (!confirmReset) {
+      confirmReset = true;
+      $("reset").textContent = "Wirklich löschen? Nochmal tippen";
+      setTimeout(() => { confirmReset = false; $("reset").textContent = "Auswertung löschen"; }, 3000);
+      return;
+    }
+    history = []; save(); confirmReset = false;
+    $("reset").textContent = "Auswertung löschen";
+    drawReport();
+  });
+
+  setInterval(() => { if ($("tip").hidden) drawReport(); }, 2000);
+  addEventListener("resize", drawReport);
+  drawReport();
+
   // Vorschau ohne Mikrofon: index.html?level=0…100
   const forced = new URLSearchParams(location.search).get("level");
 
   function loop(now) {
     let { level, db } = readLevel();
-    if (now < deafUntil) level = smoothed;   // eigenen Piepser ignorieren
     if (forced !== null) level = smoothed = +forced;
     // schnell lauter, langsam leiser → Maus erholt sich nur langsam
     const k = level > smoothed ? 0.35 : 0.03;
@@ -497,6 +697,7 @@
     if (smoothed >= MOODS[MOODS.length - 2].max) deadUntil = now + 4000;
     $("db").textContent = db == null ? "– dB" : `≈ ${db} dB`;
     render(smoothed, now);
+    if (analyser && db != null) record(db, now);
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
