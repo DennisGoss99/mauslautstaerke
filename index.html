@@ -212,8 +212,20 @@
         </radialGradient>
       </defs>
 
-      <!-- Heiligenschein (nur wenn tot) -->
-      <ellipse id="halo" cx="100" cy="22" rx="34" ry="8" fill="none" stroke="#f2c94c" stroke-width="5" opacity="0"/>
+      <!-- Mauseloch (wenn es viel zu laut ist, versteckt sich das Mäuschen) -->
+      <g id="hole" opacity="0">
+        <line x1="8" y1="174" x2="192" y2="174" stroke="#a07e6a" stroke-width="4" stroke-linecap="round"/>
+        <path d="M50 174 L50 118 A50 50 0 0 1 150 118 L150 174 Z" fill="#2a1f1c" stroke="#a07e6a" stroke-width="5" stroke-linejoin="round"/>
+        <!-- Augen, die aus dem Dunkeln gucken -->
+        <g id="holeEyes">
+          <ellipse cx="86" cy="136" rx="6" ry="7" fill="#f3e9df"/>
+          <ellipse cx="114" cy="136" rx="6" ry="7" fill="#f3e9df"/>
+          <circle cx="87" cy="137" r="3" fill="#2a1f1c"/>
+          <circle cx="115" cy="137" r="3" fill="#2a1f1c"/>
+        </g>
+        <!-- Schwanzspitze schaut noch raus -->
+        <path id="holeTail" d="M138 171 C 152 173, 162 166, 176 170" fill="none" stroke="#e7a3ae" stroke-width="5" stroke-linecap="round"/>
+      </g>
 
       <g id="shake" class="shake">
         <g id="body">
@@ -262,17 +274,7 @@
             <path d="M111 103 Q 120 92 129 103"/>
           </g>
 
-          <!-- Augen ohnmächtig (Spiralen) -->
-          <g id="eyesDizzy" fill="none" stroke="#2a1f1c" stroke-width="2.5" stroke-linecap="round" opacity="0">
-            <path d="M80 100 m0 0 a2 2 0 1 1 3 1 a5 5 0 1 1 -8 -3 a8 8 0 1 1 13 6"/>
-            <path d="M120 100 m0 0 a2 2 0 1 1 3 1 a5 5 0 1 1 -8 -3 a8 8 0 1 1 13 6"/>
-          </g>
 
-          <!-- Augen tot (X X) -->
-          <g id="eyesDead" stroke="#2a1f1c" stroke-width="4" stroke-linecap="round" opacity="0">
-            <path d="M72 92 L88 108 M88 92 L72 108"/>
-            <path d="M112 92 L128 108 M128 92 L112 108"/>
-          </g>
 
           <!-- Augenbrauen (ängstlich) -->
           <g id="brows" fill="none" stroke="#5c4f48" stroke-width="3" stroke-linecap="round" opacity="0">
@@ -291,8 +293,6 @@
 
           <!-- Mund -->
           <path id="mouth" d="M88 130 Q 100 142 112 130" fill="none" stroke="#2a1f1c" stroke-width="3" stroke-linecap="round"/>
-          <!-- Zunge (tot) -->
-          <path id="tongue" d="M100 133 q 0 12 6 12 q 6 0 5 -10 z" fill="#ef7f95" stroke="#2a1f1c" stroke-width="2" opacity="0"/>
 
           <!-- Zähnchen -->
           <g id="teeth" opacity="1">
@@ -352,7 +352,7 @@
       <div class="stat"><span class="v" id="sDur">0:00</span><span class="k">gemessen</span></div>
       <div class="stat"><span class="v" id="sAvg">–</span><span class="k">Ø Lautstärke</span></div>
       <div class="stat"><span class="v" id="sMax">–</span><span class="k">lauteste Sekunde</span></div>
-      <div class="stat"><span class="v" id="sDeaths">0</span><span class="k">Mal gestorben 💀</span></div>
+      <div class="stat"><span class="v" id="sDeaths">0</span><span class="k">Mal ins Mauseloch 🕳️</span></div>
     </div>
     <div class="chart-wrap">
       <svg id="chart" role="img" aria-label="Lautstärke über die Zeit"></svg>
@@ -369,20 +369,20 @@
 (() => {
   const $ = (id) => document.getElementById(id);
 
-  // Stimmungen von "happy" bis "tot". `max` = Obergrenze der Stufe (0–100).
+  // Stimmungen von "happy" bis "versteckt sich im Mauseloch". `max` = Obergrenze der Stufe (0–100).
   const MOODS = [
     { max: 15,  name: "Überglücklich 🥰", hint: "Herrlich ruhig hier." },
     { max: 35,  name: "Glücklich 😊",     hint: "Alles gut." },
     { max: 55,  name: "Nervös 😐",        hint: "Hm, wird etwas laut…" },
     { max: 72,  name: "Ängstlich 😰",     hint: "Bitte leiser!" },
     { max: 88,  name: "Panik 😱",         hint: "ZU LAUT!" },
-    { max: 97,  name: "Ohnmächtig 😵",    hint: "Das Mäuschen kippt um…" },
-    { max: 101, name: "Tot 💀",            hint: "Ruhe bringt es langsam zurück." },
+    { max: 97,  name: "Flüchtet 💨",      hint: "Nichts wie weg hier…" },
+    { max: 101, name: "Im Mauseloch 🕳️",  hint: "Erst wenn es ruhig ist, traut es sich wieder raus." },
   ];
 
   let audioCtx, analyser, buf;
   let smoothed = 0;      // geglätteter Pegel 0–100
-  let deadUntil = 0;     // Zeitpunkt, bis zu dem die Maus "tot" bleibt
+  let deadUntil = 0;     // Zeitpunkt, bis zu dem die Maus im Mauseloch bleibt
   let t0 = performance.now();
 
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -432,7 +432,7 @@
   }
 
   function render(level, now) {
-    const t = level / 100;            // 0 = happy, 1 = tot
+    const t = level / 100;            // 0 = happy, 1 = Mauseloch
     const dead = now < deadUntil;
     let idx = MOODS.findIndex((m) => level < m.max);
     if (dead) idx = MOODS.length - 1;
@@ -457,9 +457,7 @@
     // Augen
     const show = (id, on) => ($(id).style.opacity = on ? 1 : 0);
     show("eyesHappy", !dead && idx === 0);
-    show("eyesOpen",  !dead && idx >= 1 && idx <= 4);
-    show("eyesDizzy", !dead && idx === 5);
-    show("eyesDead",  dead);
+    show("eyesOpen",  !dead && idx >= 1);
 
     // Angst = große weiße Augen mit kleinen Pupillen
     const fear = clamp((level - 45) / 40, 0, 1);
@@ -471,12 +469,12 @@
       $("pupil" + s).setAttribute("ry", lerp(9, 3.6, fear));
       $("glint" + s).setAttribute("opacity", 1 - fear * 0.7);
     });
-    show("brows", !dead && idx >= 2 && idx <= 4);
+    show("brows", !dead && idx >= 2);
     const browTilt = lerp(0, 8, fear);
     $("browL").setAttribute("d", `M70 ${84 - browTilt * 0.2} L88 ${80 - browTilt}`);
     $("browR").setAttribute("d", `M130 ${84 - browTilt * 0.2} L112 ${80 - browTilt}`);
 
-    // Mund: Lächeln → gerade → zitternd/offen → tot
+    // Mund: Lächeln → gerade → zitternd/offen
     let mouth;
     if (dead) {
       mouth = "M86 134 L114 134";
@@ -490,25 +488,30 @@
     }
     $("mouth").setAttribute("d", mouth);
     $("mouth").setAttribute("fill", !dead && idx >= 4 ? "#5a2a2f" : "none");
-    show("tongue", dead);
     show("teeth", !dead && idx < 4);
 
-    show("sweat", !dead && idx >= 3 && idx <= 4);
+    show("sweat", !dead && idx >= 3);
     show("hearts", !dead && idx === 0);
-    $("halo").setAttribute("opacity", dead ? 1 : 0);
+    // Mauseloch: Maus weg, nur Augen (blinzeln) und Schwanzspitze sind zu sehen
+    $("shake").style.opacity = dead ? 0 : 1;
+    $("hole").setAttribute("opacity", dead ? 1 : 0);
 
     // Ohren hängen lassen
     const droop = dead ? 35 : lerp(0, 20, t);
     $("earL").style.transform = `rotate(${-droop}deg)`;
     $("earR").style.transform = `rotate(${droop}deg)`;
 
-    // Bewegung: fröhlich wippen, ängstlich zittern, ohnmächtig/tot umkippen
+    // Bewegung: fröhlich wippen, ängstlich zittern, flüchten (nach rechts weglaufen)
     const sec = (now - t0) / 1000;
     let tf = "";
     if (dead) {
-      tf = "rotate(90deg) translate(18px, -10px)";
+      const blink = sec % 3.2 < 0.15 ? 0.15 : 1;
+      $("holeEyes").style.transform = `scaleY(${blink})`;
+      $("holeEyes").style.transformOrigin = "100px 136px";
+      $("holeTail").setAttribute("d", `M138 171 C 152 173, 162 ${166 + Math.sin(sec * 5) * 3}, 176 170`);
     } else if (idx === 5) {
-      tf = `rotate(${lerp(10, 35, (level - 88) / 9)}deg)`;
+      const run = clamp((level - 88) / 9, 0, 1);
+      tf = `translateX(${lerp(4, 18, run) + (Math.random() - 0.5) * 3}px) rotate(${lerp(4, 10, run)}deg)`;
     } else if (idx >= 2) {
       const amp = lerp(0.3, 4, fear);
       tf = `translate(${(Math.random() - 0.5) * amp * 2}px, ${(Math.random() - 0.5) * amp}px)`;
@@ -516,9 +519,7 @@
       tf = `translateY(${Math.sin(sec * 3) * 2.5}px)`;
     }
     $("shake").style.transform = tf;
-    $("tail").setAttribute("d", dead
-      ? "M150 165 C 175 170, 185 168, 195 168"
-      : `M150 165 C 185 170, 190 140, 175 130 S 160 110, ${182 + Math.sin(sec * 4) * (1 - t) * 6} 98`);
+    $("tail").setAttribute("d", `M150 165 C 185 170, 190 140, 175 130 S 160 110, ${182 + Math.sin(sec * 4) * (1 - t) * 6} 98`);
 
     // Pegelanzeige
     $("level").style.width = level.toFixed(1) + "%";
